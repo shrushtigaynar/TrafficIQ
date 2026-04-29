@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>TrafficIQ — Real-Time Traffic Intelligence</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;transition:background-color .3s,color .3s,border-color .3s}
+/* ── THEME VARIABLES ── */
+:root{
+  --nav-bg:#0f172a;--nav-text:#f1f5f9;--nav-muted:#94a3b8;
+}
+[data-theme="dark"]{
+  --bg:#0a0e1a;--card:#111827;--panel:#0d1530;--border:#1e293b;
+  --text:#f1f5f9;--muted:#94a3b8;
+  --ibar-bg:#0d1530;--ibar-text:#00d4ff;--ibar-muted:#64748b;--ibar-border:rgba(0,212,255,.15);
+}
+[data-theme="light"]{
+  --bg:#f0f4f8;--card:#ffffff;--panel:#f1f5f9;--border:#cbd5e0;
+  --text:#1a202c;--muted:#4a5568;
+  --ibar-bg:#ffffff;--ibar-text:#1a365d;--ibar-muted:#4a5568;--ibar-border:#cbd5e0;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif}
+/* ── NAV — always dark regardless of mode ── */
+#nav{position:fixed;top:0;left:0;right:0;height:56px;background:var(--nav-bg);border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;padding:0 1rem;gap:.7rem;z-index:1000}
+.logo{display:flex;align-items:center;gap:.5rem;flex-shrink:0}
+.ldot{width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e;animation:gp 2s infinite}
+@keyframes gp{0%,100%{opacity:1}50%{opacity:.3}}
+.ltext{font-weight:800;font-size:1rem;color:#f1f5f9 !important}
+.lsub{font-size:.6rem;color:#94a3b8 !important}
+.sw{display:flex;gap:.4rem;flex:1;max-width:380px;margin:0 auto}
+#ci{flex:1;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);color:#ffffff;padding:.38rem .75rem;border-radius:.45rem;font-size:.82rem;outline:none;transition:border-color .2s}
+#ci:focus{border-color:rgba(255,255,255,.6)}
+#ci::placeholder{color:rgba(255,255,255,.55)}
+#ab{background:#3b82f6;color:#fff;border:none;padding:.38rem .95rem;border-radius:.45rem;font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap}
+#ab:hover{opacity:.85}
+#ab:disabled{opacity:.4;cursor:not-allowed}
+.nr{display:flex;align-items:center;gap:.55rem;margin-left:auto;flex-shrink:0}
+#clk{font-size:.78rem;color:#f1f5f9 !important;font-variant-numeric:tabular-nums}
+.lb{background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.5);color:#ef4444;padding:.15rem .45rem;border-radius:999px;font-size:.62rem;font-weight:700;display:flex;align-items:center;gap:.25rem}
+.lb::before{content:'';width:5px;height:5px;border-radius:50%;background:#ef4444;animation:rp 1.2s infinite}
+@keyframes rp{0%,100%{opacity:1}50%{opacity:.2}}
+#lu{font-size:.62rem;color:#94a3b8 !important;display:none}
+#ub{display:none;font-size:.62rem;color:#f59e0b}
+#themeBtn{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#ffffff;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+#themeBtn:hover{background:rgba(255,255,255,.25)}
+/* ── INFO BAR ── */
+#ibar{position:fixed;top:56px;left:0;right:0;height:34px;background:var(--ibar-bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 1rem;gap:.5rem;z-index:999;overflow-x:auto}
+#ibar::-webkit-scrollbar{height:0}
+.ip{display:flex;align-items:center;gap:.3rem;background:rgba(0,212,255,.07);border:1px solid var(--ibar-border);border-radius:999px;padding:.18rem .6rem;white-space:nowrap;flex-shrink:0;cursor:help;position:relative}
+[data-theme="light"] .ip{background:rgba(26,54,93,.06);border-color:#cbd5e0}
+.ip:hover .iptt{display:block}
+.iptt{display:none;position:absolute;top:calc(100% + 6px);left:0;background:var(--card);border:1px solid var(--border);border-radius:.4rem;padding:.5rem .7rem;font-size:.68rem;color:var(--text);width:220px;z-index:100;line-height:1.5;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+.ipi{font-size:.72rem}
+.ipt{font-size:.63rem;font-weight:700;color:var(--ibar-text)}
+.ipd{font-size:.58rem;color:var(--ibar-muted)}
+/* ── LAYOUT ── */
+#main{position:fixed;top:90px;left:0;right:0;bottom:0;display:flex}
+/* ── LEFT PANEL ── */
+#lp{width:275px;flex-shrink:0;background:var(--card);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;z-index:10}
+#lp::-webkit-scrollbar{width:3px}
+#lp::-webkit-scrollbar-thumb{background:var(--border)}
+/* LANDING */
+#land{display:flex;flex-direction:column;padding:1rem;gap:.85rem}
+.tl{display:flex;flex-direction:column;align-items:center;margin:.2rem 0}
+.tlb{background:rgba(0,0,0,.3);border:2px solid var(--border);border-radius:.5rem;padding:.5rem .35rem;display:flex;flex-direction:column;gap:.35rem;align-items:center;width:40px}
+.tll{width:20px;height:20px;border-radius:50%;opacity:.15}
+.tll.r{background:#ef4444}.tll.a{background:#f59e0b}.tll.g{background:#22c55e}
+.tll.on{opacity:1;box-shadow:0 0 10px currentColor}
+.ltitle{font-size:1.4rem;font-weight:900;color:#00d4ff;text-align:center}
+.ldesc{font-size:.72rem;color:var(--muted);text-align:center;line-height:1.6}
+.fcards{display:flex;flex-direction:column;gap:.3rem}
+.fc{background:var(--panel);border:1px solid var(--border);border-radius:.45rem;padding:.5rem .7rem;display:flex;align-items:center;gap:.6rem}
+.fci{font-size:1rem;flex-shrink:0}
+.fct{font-size:.75rem;font-weight:700;color:var(--text)}
+.fcd{font-size:.62rem;color:var(--muted)}
+.clabel{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.3rem}
+.chip{background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.2);color:#00d4ff;padding:.2rem .55rem;border-radius:999px;font-size:.7rem;cursor:pointer}
+.chip:hover{background:rgba(0,212,255,.18)}
+/* DATA PANEL */
+#lpd{display:none;flex-direction:column}
+.sec{padding:.75rem;border-bottom:1px solid var(--border)}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:.45rem}
+.slabel{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.scnt{font-size:.6rem;color:var(--muted);background:var(--panel);border:1px solid var(--border);padding:.1rem .35rem;border-radius:999px}
+/* City overview */
+.cov{background:var(--panel);border-radius:.55rem;padding:.75rem;display:flex;align-items:center;gap:.75rem}
+.sbig{font-size:2.1rem;font-weight:900;line-height:1}
+.cnm{font-size:.88rem;font-weight:700;color:var(--text)}
+.csub{font-size:.65rem;color:var(--muted);margin-top:.1rem}
+.tpb{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .55rem;border-radius:999px;font-size:.63rem;font-weight:700;margin-top:.35rem}
+/* Refresh bar */
+.rfbw{margin-top:.45rem}
+.rfbl{display:flex;justify-content:space-between;font-size:.58rem;color:var(--muted);margin-bottom:.18rem}
+.rfb{height:3px;background:var(--border);border-radius:999px;overflow:hidden}
+.rfbf{height:100%;background:#00d4ff;border-radius:999px;transition:width 1s linear}
+/* Area list */
+.asi{width:100%;background:rgba(128,128,128,.08);border:1px solid var(--border);color:var(--text);padding:.32rem .6rem;border-radius:.35rem;font-size:.75rem;outline:none;margin-bottom:.35rem}
+.asi:focus{border-color:#3b82f6}
+.asi::placeholder{color:var(--muted)}
+#al{display:flex;flex-direction:column;gap:.18rem;max-height:185px;overflow-y:auto}
+#al::-webkit-scrollbar{width:3px}
+#al::-webkit-scrollbar-thumb{background:var(--border)}
+.ai{display:flex;align-items:center;gap:.4rem;padding:.28rem .42rem;border-radius:.3rem;cursor:pointer;transition:background .15s;font-size:.75rem}
+.ai:hover{background:rgba(59,130,246,.1)}
+.ai.sel{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.25)}
+.adot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.aname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.atl{font-size:.68rem;flex-shrink:0}
+/* Rank list */
+.ri{display:flex;align-items:center;gap:.4rem;padding:.22rem 0;font-size:.75rem}
+.rn{font-size:.6rem;color:var(--muted);width:13px;flex-shrink:0}
+.rnm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.rb{padding:.1rem .32rem;border-radius:999px;font-size:.6rem;font-weight:700;flex-shrink:0}
+/* AI card */
+.aic{background:var(--panel);border-radius:.45rem;padding:.6rem;font-size:.75rem;color:var(--muted);line-height:1.6;border-left:3px solid #3b82f6}
+/* ── MAP ── */
+#mw{position:absolute;left:275px;right:0;top:0;bottom:0}
+#map{width:100%;height:100%}
+/* Map legend */
+#mleg{position:absolute;bottom:1rem;right:1rem;background:var(--card);border:1px solid var(--border);border-radius:.45rem;padding:.55rem .7rem;z-index:500;font-size:.68rem;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.mli{display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;color:var(--text)}
+.mli:last-child{margin-bottom:0}
+.mld{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.mbtn{position:absolute;z-index:500;background:var(--card);border:1px solid var(--border);color:var(--text);padding:.32rem .6rem;border-radius:.35rem;font-size:.68rem;cursor:pointer}
+.mbtn:hover,.mbtn.on{border-color:#3b82f6;color:#3b82f6}
+#br{top:72px;right:10px}
+#bc{top:104px;right:10px}
+#bp2{top:136px;right:10px}
+/* ── RIGHT PANEL ── */
+#rp{position:absolute;top:0;right:0;bottom:0;width:308px;background:var(--card);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;z-index:200;display:flex;flex-direction:column}
+#rp.open{transform:translateX(0)}
+#rp::-webkit-scrollbar{width:3px}
+#rp::-webkit-scrollbar-thumb{background:var(--border)}
+.rph{display:flex;align-items:center;justify-content:space-between;padding:.75rem;border-bottom:1px solid var(--border);flex-shrink:0}
+.rpan{font-size:.92rem;font-weight:700;color:var(--text)}
+#rpc{background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer}
+.rpb{padding:.75rem;display:flex;flex-direction:column;gap:.8rem}
+.cbb{display:inline-flex;align-items:center;gap:.35rem;padding:.32rem .75rem;border-radius:.45rem;font-size:.82rem;font-weight:700}
+.srow{display:flex;gap:.4rem}
+.sc2{flex:1;background:var(--panel);border-radius:.4rem;padding:.5rem;text-align:center}
+.sv{font-size:1.15rem;font-weight:800;color:var(--text)}
+.sl{font-size:.58rem;color:var(--muted);margin-top:.1rem}
+.mw2{background:var(--panel);border-radius:.4rem;padding:.6rem}
+.ml{font-size:.62rem;color:var(--muted);margin-bottom:.3rem;display:flex;justify-content:space-between}
+.mb2{height:8px;background:var(--border);border-radius:999px;overflow:hidden}
+.mf{height:100%;border-radius:999px;transition:width .6s ease}
+.rfp{background:var(--panel);border-radius:.4rem;padding:.5rem .65rem}
+.rfpl{display:flex;justify-content:space-between;font-size:.62rem;color:var(--muted);margin-bottom:.25rem}
+.rfpb{height:3px;background:var(--border);border-radius:999px;overflow:hidden}
+.rfpf{height:100%;background:#00d4ff;border-radius:999px;transition:width 1s linear}
+.ptl{display:flex;gap:.22rem;overflow-x:auto;padding-bottom:.12rem}
+.ptl::-webkit-scrollbar{height:3px}
+.ptl::-webkit-scrollbar-thumb{background:var(--border)}
+.pc{flex-shrink:0;background:var(--panel);border-radius:.38rem;padding:.42rem .5rem;text-align:center;min-width:52px;border:1px solid var(--border)}
+.pt{font-size:.56rem;color:var(--muted);margin-bottom:.18rem}
+.ps{font-size:.9rem;font-weight:800}
+.pl{font-size:.54rem;margin-top:.1rem}
+.btb{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:.38rem;padding:.42rem .6rem;font-size:.73rem;color:#22c55e}
+.eah{display:none;margin-top:.3rem;font-size:.68rem;color:#f59e0b;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:.38rem;padding:.32rem .5rem}
+.reci{display:flex;gap:.4rem;padding:.3rem 0;border-bottom:1px solid rgba(128,128,128,.15);font-size:.73rem;color:var(--text)}
+.reci:last-child{border-bottom:none}
+.rimp{flex-shrink:0;padding:.08rem .28rem;border-radius:999px;font-size:.56rem;font-weight:700}
+/* ── LOADING ── */
+#lov{position:fixed;inset:0;background:rgba(10,14,26,.96);z-index:2000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:.9rem}
+.lsp{width:42px;height:42px;border:3px solid var(--border);border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ltit{font-size:.92rem;font-weight:700;color:#3b82f6}
+#lst{font-size:.78rem;color:var(--muted);min-height:1rem;text-align:center}
+.lsteps{display:flex;flex-direction:column;gap:.28rem;width:240px}
+.ls{display:flex;align-items:center;gap:.5rem;padding:.25rem .45rem;border-radius:.38rem;font-size:.73rem;color:var(--muted);transition:all .3s}
+.ls.on{color:#3b82f6;background:rgba(59,130,246,.08)}
+.ls.dn{color:#22c55e}
+.lsi{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:.5rem;flex-shrink:0}
+.ls.on .lsi{animation:spin .7s linear infinite}
+/* ── TOAST ── */
+#toast{position:fixed;bottom:1.1rem;left:50%;transform:translateX(-50%);background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#fca5a5;padding:.5rem 1rem;border-radius:.45rem;font-size:.76rem;z-index:3000;display:none;max-width:90vw;text-align:center}
+/* Leaflet */
+.leaflet-popup-content-wrapper{background:var(--card)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:.45rem!important;box-shadow:0 4px 20px rgba(0,0,0,.4)!important}
+.leaflet-popup-tip{background:var(--card)!important}
+.leaflet-popup-content{margin:.5rem .65rem!important;font-size:.76rem!important}
+.ppt{font-weight:700;font-size:.82rem;margin-bottom:.22rem;color:var(--text)}
+.ppb{display:inline-block;padding:.1rem .38rem;border-radius:999px;font-size:.63rem;font-weight:700;margin-bottom:.18rem}
+.pps{font-size:.68rem;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="logo"><div class="ldot"></div><div><div class="ltext">TrafficIQ</div><div class="lsub">Real-Time Traffic Intelligence</div></div></div>
+  <div class="sw"><input id="ci" type="text" placeholder="Enter city name…" autocomplete="off"/><button id="ab" onclick="go()">Analyse</button></div>
+  <div class="nr">
+    <button id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    <div id="clk">--:--:--</div>
+    <div class="lb">LIVE</div>
+    <div id="lu">Updated: <span id="lut">—</span></div>
+    <div id="ub">Updating…</div>
+  </div>
+</nav>
+
+<div id="ibar">
+  <div class="ip"><span class="ipi">📊</span><span class="ipt">Score 0–10</span><span class="ipd">0=Free · 10=Standstill</span><div class="iptt">Congestion score calculated from current speed vs free flow speed. 0 means roads are completely clear.</div></div>
+  <div class="ip"><span class="ipi">🚗</span><span class="ipt">Speed Ratio</span><span class="ipd">Current ÷ Free Flow</span><div class="iptt">Lower ratio means more congestion. Ratio of 1.0 means traffic is flowing freely at normal speed.</div></div>
+  <div class="ip"><span class="ipi">🎨</span><span class="ipt">Color Code</span><span class="ipd">🟢 Free 🟡 Moderate 🟠 Heavy 🔴 Critical</span><div class="iptt">Green = Score 0–2 (Free Flow) · Yellow = 3–5 (Moderate) · Orange = 6–7 (Heavy) · Red = 8–10 (Critical)</div></div>
+  <div class="ip"><span class="ipi">🕐</span><span class="ipt">Predictions</span><span class="ipd">Next 1hr · 3hr · Tomorrow AM/PM</span><div class="iptt">Rule-based predictions using area type (IT hub, market, residential) and time of day patterns.</div></div>
+</div>
+
+<div id="main">
+  <div id="lp">
+    <div id="land">
+      <div class="tl"><div class="tlb"><div class="tll r" id="tlR"></div><div class="tll a" id="tlA"></div><div class="tll g" id="tlG"></div></div></div>
+      <div class="ltitle">TrafficIQ</div>
+      <div class="ldesc">Enter any Indian city to get live traffic analysis, congestion hotspots and AI-powered predictions.</div>
+      <div class="fcards">
+        <div class="fc"><div class="fci">🔴</div><div><div class="fct">Live Traffic</div><div class="fcd">Real-time congestion data</div></div></div>
+        <div class="fc"><div class="fci">🕐</div><div><div class="fct">Predictions</div><div class="fcd">Next 1hr, 3hr, tomorrow</div></div></div>
+        <div class="fc"><div class="fci">🤖</div><div><div class="fct">AI Insights</div><div class="fcd">Smart route recommendations</div></div></div>
+      </div>
+      <div><div class="clabel">Supported Cities</div>
+      <div class="chips">
+        <span class="chip" onclick="setCity('Pune')">Pune</span>
+        <span class="chip" onclick="setCity('Mumbai')">Mumbai</span>
+        <span class="chip" onclick="setCity('Delhi')">Delhi</span>
+        <span class="chip" onclick="setCity('Bangalore')">Bangalore</span>
+      </div></div>
+    </div>
+
+    <div id="lpd">
+      <div class="sec">
+        <div class="slabel">City Overview</div>
+        <div class="cov">
+          <div class="sbig" id="os">—</div>
+          <div><div class="cnm" id="cn">—</div><div class="csub" id="cs">—</div><div class="tpb" id="tpb">—</div></div>
+        </div>
+        <div class="rfbw"><div class="rfbl"><span>Next refresh</span><span id="rfc">60s</span></div><div class="rfb"><div class="rfbf" id="rff" style="width:100%"></div></div></div>
+      </div>
+      <div class="sec">
+        <div class="sh"><div class="slabel">All Areas</div><span class="scnt" id="acnt">0</span></div>
+        <input class="asi" type="text" id="asearch" placeholder="Search areas…" oninput="filterAreas(this.value)"/>
+        <div id="al"></div>
+      </div>
+      <div class="sec"><div class="sh"><div class="slabel">🔴 Most Congested</div><span class="scnt" id="wcnt">5</span></div><div id="wl"></div></div>
+      <div class="sec"><div class="sh"><div class="slabel">🟢 Least Congested</div><span class="scnt" id="bcnt">5</span></div><div id="bl"></div></div>
+      <div class="sec"><div class="slabel">🤖 AI Travel Advice</div><div class="aic" id="aiv">—</div></div>
+    </div>
+  </div>
+
+  <div id="mw">
+    <div id="map"></div>
+    <button class="mbtn" id="br" onclick="resetView()">⌂ Reset</button>
+    <button class="mbtn on" id="bc" onclick="toggleLayer('current')">● Current</button>
+    <button class="mbtn" id="bp2" onclick="toggleLayer('predict')">◎ Predict</button>
+    <div id="mleg">
+      <div class="mli"><div class="mld" style="background:#22c55e"></div>0–2 Free Flow</div>
+      <div class="mli"><div class="mld" style="background:#eab308"></div>3–5 Moderate</div>
+      <div class="mli"><div class="mld" style="background:#f59e0b"></div>6–7 Heavy</div>
+      <div class="mli"><div class="mld" style="background:#ef4444"></div>8–10 Critical</div>
+    </div>
+  </div>
+
+  <div id="rp">
+    <div class="rph"><div class="rpan" id="rpan">Area Details</div><button id="rpc" onclick="closeRP()">✕</button></div>
+    <div class="rpb">
+      <div><span class="cbb" id="rpcb">—</span></div>
+      <div class="srow">
+        <div class="sc2"><div class="sv" id="rpcs">—</div><div class="sl">Current km/h</div></div>
+        <div class="sc2"><div class="sv" id="rpff">—</div><div class="sl">Free Flow km/h</div></div>
+      </div>
+      <div class="mw2"><div class="ml"><span>Congestion</span><span id="rpmp">0%</span></div><div class="mb2"><div class="mf" id="rpmf" style="width:0%"></div></div></div>
+      <div class="rfp"><div class="rfpl"><span>Fetched: <span id="rpft">—</span></span><span>Refresh: <span id="rpnr">60s</span></span></div><div class="rfpb"><div class="rfpf" id="rprf" style="width:100%"></div></div></div>
+      <div><div class="slabel" style="margin-bottom:.35rem">Prediction Timeline</div><div class="ptl" id="rptl"></div></div>
+      <div><div class="slabel" style="margin-bottom:.3rem">Hourly Forecast (6am–11pm)</div><svg id="hc" style="width:100%;height:82px"></svg></div>
+      <div><div class="slabel" style="margin-bottom:.3rem">Best Time to Travel</div><div class="btb" id="rpbt">—</div><div class="eah" id="eah">⏰ Traffic typically picks up from 7:00 AM</div></div>
+      <div><div class="slabel" style="margin-bottom:.3rem">AI Recommendations</div><div id="rprec"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Click outside right panel to close -->
+<div id="overlay" onclick="closeRP()" style="display:none;position:fixed;inset:0;z-index:150;background:transparent"></div>
+
+<div id="lov">
+  <div class="lsp"></div>
+  <div class="ltit">Analysing Traffic…</div>
+  <div id="lst"></div>
+  <div class="lsteps">
+    <div class="ls" id="ls1"><div class="lsi">1</div>Finding city on the map…</div>
+    <div class="ls" id="ls2"><div class="lsi">2</div>Discovering all areas…</div>
+    <div class="ls" id="ls3"><div class="lsi">3</div>Checking live traffic…</div>
+    <div class="ls" id="ls4"><div class="lsi">4</div>Running AI analysis…</div>
+    <div class="ls" id="ls5"><div class="lsi">5</div>Building dashboard…</div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+const API='http://127.0.0.1:8000';
+let map=null,tileLayer=null,cityData=null,currentCity=null;
+let curMarkers=[],predMarkers=[],activeLayer='current';
+let refreshTimer=null,rfInterval=null,rfCountdown=60;
+
+const LC={CRITICAL:'#ef4444',HIGH:'#f59e0b',MODERATE:'#eab308',LOW:'#22c55e'};
+const LBG={CRITICAL:'rgba(239,68,68,.2)',HIGH:'rgba(245,158,11,.2)',MODERATE:'rgba(234,179,8,.2)',LOW:'rgba(34,197,94,.2)'};
+const LBD={CRITICAL:'rgba(239,68,68,.4)',HIGH:'rgba(245,158,11,.4)',MODERATE:'rgba(234,179,8,.4)',LOW:'rgba(34,197,94,.4)'};
+const CM={red:'#ef4444',orange:'#f59e0b',yellow:'#eab308',green:'#22c55e'};
+
+function sCol(s){return s>=8?'#ef4444':s>=6?'#f59e0b':s>=3?'#eab308':'#22c55e';}
+function sLvl(s){return s>7?'CRITICAL':s>=4?'HIGH':s>=2?'MODERATE':'LOW';}
+function dotCol(a){return CM[a.color]||LC[a.congestion_level||sLvl(a.congestion_score||0)]||'#22c55e';}
+function sBadge(s){
+  if(s>=8)return 'background:#ef444430;color:#ef4444;border:1px solid #ef444455';
+  if(s>=6)return 'background:#f59e0b30;color:#f59e0b;border:1px solid #f59e0b55';
+  if(s>=3)return 'background:#eab30830;color:#eab308;border:1px solid #eab30855';
+  return 'background:#22c55e30;color:#22c55e;border:1px solid #22c55e55';
+}
+function trafficLight(s){return s>=8?'🔴 Critical':s>=6?'🟠 Heavy':s>=3?'🟡 Moderate':'🟢 Free';}
+
+// ── THEME ─────────────────────────────────────────────────────────────────────
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme',theme);
+  document.getElementById('themeBtn').textContent=theme==='dark'?'🌙':'☀️';
+  localStorage.setItem('tiq-theme',theme);
+  if(tileLayer&&map){
+    const url=theme==='dark'
+      ?'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      :'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    tileLayer.setUrl(url);
+  }
+}
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme');
+  applyTheme(cur==='dark'?'light':'dark');
+}
+// Load saved theme
+applyTheme(localStorage.getItem('tiq-theme')||'dark');
+
+// ── TIME PERIOD ───────────────────────────────────────────────────────────────
+function timePeriod(){
+  const h=new Date().getHours();
+  if(h<7)  return{label:'🌙 Midnight — Minimal Traffic',  col:'#22c55e',bg:'rgba(34,197,94,.15)'};
+  if(h<10) return{label:'🌅 Morning Rush — Heavy Traffic', col:'#ef4444',bg:'rgba(239,68,68,.15)'};
+  if(h<17) return{label:'☀️ Office Hours — Moderate',      col:'#f59e0b',bg:'rgba(245,158,11,.15)'};
+  if(h<21) return{label:'🌆 Evening Rush — Heavy Traffic', col:'#ef4444',bg:'rgba(239,68,68,.15)'};
+  return          {label:'🌃 Night — Light Traffic',       col:'#22c55e',bg:'rgba(34,197,94,.15)'};
+}
+
+// ── CLOCK ─────────────────────────────────────────────────────────────────────
+function tick(){document.getElementById('clk').textContent=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+setInterval(tick,1000);tick();
+
+// ── TRAFFIC LIGHT ─────────────────────────────────────────────────────────────
+const tlSeq=[['tlR',3000],['tlA',1500],['tlG',3000]];let tli=0;
+function tlStep(){document.querySelectorAll('.tll').forEach(e=>e.classList.remove('on'));const[id,d]=tlSeq[tli];const e=document.getElementById(id);if(e)e.classList.add('on');tli=(tli+1)%tlSeq.length;setTimeout(tlStep,d);}
+tlStep();
+
+// ── MAP INIT ──────────────────────────────────────────────────────────────────
+function initMap(){
+  if(map)return;
+  map=L.map('map',{zoomControl:true}).setView([20.5937,78.9629],5);
+  const theme=document.documentElement.getAttribute('data-theme');
+  const url=theme==='dark'
+    ?'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    :'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+  tileLayer=L.tileLayer(url,{attribution:'© OpenStreetMap contributors © CARTO',maxZoom:19,subdomains:'abcd'}).addTo(map);
+  setTimeout(()=>map.invalidateSize(),200);
+}
+window.addEventListener('load',()=>{initMap();});
+window.addEventListener('resize',()=>{if(map)map.invalidateSize();});
+
+// ── LOADING STEPS ─────────────────────────────────────────────────────────────
+const LSS=['ls1','ls2','ls3','ls4','ls5'];let lsc=0,lst2=null;
+function startLS(){lsc=0;LSS.forEach((id,i)=>{const e=document.getElementById(id);e.className='ls';e.querySelector('.lsi').textContent=i+1;});advLS();}
+function advLS(){if(lsc>0)doneLS(LSS[lsc-1]);if(lsc<LSS.length){document.getElementById(LSS[lsc]).classList.add('on');lsc++;lst2=setTimeout(advLS,6000);}}
+function doneLS(id){const e=document.getElementById(id);e.className='ls dn';e.querySelector('.lsi').textContent='✓';}
+function finLS(){clearTimeout(lst2);LSS.forEach(id=>doneLS(id));}
+
+function setCity(n){document.getElementById('ci').value=n;document.getElementById('ci').focus();}
+
+// ── ANALYSIS ──────────────────────────────────────────────────────────────────
+async function go(){
+  const city=document.getElementById('ci').value.trim();
+  if(!city){showToast('Please enter a city name.');return;}
+  document.getElementById('lov').style.display='flex';
+  document.getElementById('ab').disabled=true;
+  document.getElementById('lst').textContent='Connecting to backend…';
+  startLS();
+  try{
+    const res=await fetch(API+'/analyse-city',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({city_name:city})});
+    const data=await res.json();
+    console.log('[TrafficIQ] API response:',data);
+    if(!res.ok){const d=data.detail||{};throw new Error('['+(d.step||'err')+'] '+(d.error||res.statusText));}
+    finLS();
+    document.getElementById('lst').textContent='Building dashboard…';
+    setTimeout(()=>{
+      document.getElementById('lov').style.display='none';
+      cityData=data;currentCity=data.city_name||city;
+      renderDash(data);startRefresh();
+    },500);
+  }catch(e){
+    document.getElementById('lov').style.display='none';
+    console.error('[TrafficIQ]',e);
+    showToast('Analysis failed: '+e.message);
+  }finally{document.getElementById('ab').disabled=false;}
+}
+document.getElementById('ci').addEventListener('keydown',e=>{if(e.key==='Enter')go();});
+
+// ── RENDER DASHBOARD ──────────────────────────────────────────────────────────
+function renderDash(data){
+  initMap();
+  const score=data.overall_score??0;
+  const tp=timePeriod();
+  document.getElementById('land').style.display='none';
+  document.getElementById('lpd').style.display='flex';
+  document.getElementById('os').textContent=parseFloat(score).toFixed(1);
+  document.getElementById('os').style.color=sCol(score);
+  document.getElementById('cn').textContent=data.city_name||currentCity||'—';
+  document.getElementById('cs').textContent=(data.total_areas||0)+' areas · '+sLvl(score);
+  const tpb=document.getElementById('tpb');
+  tpb.textContent=tp.label;tpb.style.background=tp.bg;tpb.style.color=tp.col;tpb.style.border='1px solid '+tp.col+'44';
+  renderAreaList(data.areas||[]);
+  renderWorst(data.worst_areas||[]);
+  renderBest(data.best_areas||[]);
+  document.getElementById('aiv').textContent=data.llm_insights?.travel_advice||'No AI advice available.';
+  const c=data.coordinates||{};
+  map.flyTo([c.lat||20.59,c.lon||78.96],12,{duration:1.5});
+  setTimeout(()=>map.invalidateSize(),400);
+  addMarkers(data.areas||[]);
+  document.getElementById('lu').style.display='block';
+  document.getElementById('lut').textContent=new Date().toLocaleTimeString('en-IN');
+}
+
+// ── AREA LIST ─────────────────────────────────────────────────────────────────
+function renderAreaList(areas){
+  document.getElementById('acnt').textContent=areas.length;
+  document.getElementById('al').innerHTML=areas.map((a,i)=>{
+    const score=a.congestion_score??0;
+    const dot=dotCol(a);
+    const tl=trafficLight(score);
+    return `<div class="ai" id="ai-${i}" onclick="selectArea(${i})">
+      <div class="adot" style="background:${dot}"></div>
+      <div class="aname">${a.area_name||a.name||'—'}</div>
+      <span class="atl">${tl}</span>
+    </div>`;
+  }).join('');
+}
+
+function filterAreas(q){
+  const lq=q.toLowerCase();
+  document.querySelectorAll('.ai').forEach(el=>{
+    el.style.display=el.querySelector('.aname').textContent.toLowerCase().includes(lq)?'':'none';
+  });
+}
+
+// ── WORST / BEST ──────────────────────────────────────────────────────────────
+function renderWorst(areas){
+  document.getElementById('wcnt').textContent=areas.length;
+  const allLow=areas.length>0&&areas.every(a=>(a.congestion_score??0)<=1);
+  if(allLow){
+    document.getElementById('wl').innerHTML='<div style="font-size:.7rem;color:#22c55e;padding:.2rem 0">✅ All areas clear — Early morning low traffic</div>';
+    return;
+  }
+  document.getElementById('wl').innerHTML=areas.length
+    ?areas.map((a,i)=>`<div class="ri"><div class="rn">${i+1}</div><div class="adot" style="background:${dotCol(a)}"></div><div class="rnm">${a.area_name||a.name||'—'}</div><span class="rb" style="${sBadge(a.congestion_score??0)}">${a.congestion_score??0}</span></div>`).join('')
+    :'<div style="font-size:.68rem;color:var(--muted)">No data</div>';
+}
+
+function renderBest(areas){
+  document.getElementById('bcnt').textContent=areas.length;
+  document.getElementById('bl').innerHTML=areas.length
+    ?areas.map((a,i)=>`<div class="ri"><div class="rn">${i+1}</div><div class="adot" style="background:${dotCol(a)}"></div><div class="rnm">${a.area_name||a.name||'—'}</div><span class="rb" style="${sBadge(a.congestion_score??0)}">${a.congestion_score??0}</span></div>`).join('')
+    :'<div style="font-size:.68rem;color:var(--muted)">No data</div>';
+}
+
+// ── MAP MARKERS ───────────────────────────────────────────────────────────────
+function clearM(arr){arr.forEach(m=>{try{map.removeLayer(m);}catch(e){}});arr.length=0;}
+
+function addMarkers(areas){
+  if(!map)return;
+  clearM(curMarkers);
+  const now=new Date().toLocaleTimeString('en-IN');
+  areas.forEach(function(area){
+    const lat=area.lat,lon=area.lon;
+    if(!lat||!lon)return;
+    const hex=CM[area.color]||LC[area.congestion_level||sLvl(area.congestion_score||0)];
+    const name=area.area_name||area.name||'—';
+    const score=area.congestion_score??0;
+    const lvl=area.congestion_level||sLvl(score);
+    const circle=L.circle([lat,lon],{color:hex,fillColor:hex,fillOpacity:.6,radius:600,weight:2}).addTo(map);
+    circle.bindPopup(
+      '<div class="ppt">'+name+'</div>'+
+      '<span class="ppb" style="background:'+LBG[lvl]+';color:'+hex+';border:1px solid '+LBD[lvl]+'">'+lvl+'</span>'+
+      '<div class="pps">Score: '+score+'/10 · '+trafficLight(score)+'</div>'+
+      '<div class="pps">Last updated: '+now+'</div>'
+    );
+    circle.on('click',(function(a){return function(){selectAreaByName(a.area_name||a.name);};})(area));
+    curMarkers.push(circle);
+  });
+  if(curMarkers.length>0){try{map.fitBounds(curMarkers.map(m=>m.getLatLng()),{padding:[40,40]});}catch(e){}}
+}
+
+function toggleLayer(layer){
+  activeLayer=layer;
+  document.getElementById('bc').classList.toggle('on',layer==='current');
+  document.getElementById('bp2').classList.toggle('on',layer==='predict');
+  if(!cityData)return;
+  if(layer==='current'){
+    curMarkers.forEach(m=>{try{m.addTo(map);}catch(e){}});
+    clearM(predMarkers);
+  }else{
+    clearM(curMarkers);clearM(predMarkers);
+    (cityData.areas||[]).forEach(function(a){
+      if(!a.lat||!a.lon)return;
+      const pred=(cityData.predictions?.most_congested_tomorrow||[]);
+      const match=pred.find(p=>(p.area_name||'').toLowerCase()===(a.area_name||'').toLowerCase());
+      const sc=match?.tomorrow_morning?.score??5;
+      const col=sCol(sc);
+      const c=L.circle([a.lat,a.lon],{color:col,fillColor:col,fillOpacity:.25,radius:600,weight:1.5,dashArray:'6,4'}).addTo(map);
+      c.bindPopup('<b>'+(a.area_name||'—')+'</b><br/>Tomorrow AM: '+sc+'/10');
+      predMarkers.push(c);
+    });
+  }
+}
+
+function resetView(){if(!cityData||!map)return;const c=cityData.coordinates||{};map.flyTo([c.lat||20.59,c.lon||78.96],12,{duration:1});}
+
+// ── AREA SELECTION ────────────────────────────────────────────────────────────
+function selectArea(idx){
+  if(!cityData)return;
+  const area=(cityData.areas||[])[idx];
+  if(!area)return;
+  document.querySelectorAll('.ai').forEach(e=>e.classList.remove('sel'));
+  const el=document.getElementById('ai-'+idx);
+  if(el)el.classList.add('sel');
+  if(area.lat&&area.lon&&map)map.flyTo([area.lat,area.lon],14,{duration:1});
+  setTimeout(()=>map.invalidateSize(),350);
+  openRP(area,null,cityData.llm_insights);
+  fetchArea(area.area_name||area.name);
+}
+
+function selectAreaByName(name){
+  const idx=(cityData?.areas||[]).findIndex(a=>(a.area_name||a.name||'').toLowerCase()===name.toLowerCase());
+  if(idx>=0)selectArea(idx);
+}
+
+async function fetchArea(areaName){
+  try{
+    const res=await fetch(API+'/area-traffic/'+encodeURIComponent(currentCity)+'/'+encodeURIComponent(areaName));
+    if(!res.ok)return;
+    const data=await res.json();
+    openRP(data.live_traffic,data.predictions,cityData?.llm_insights);
+  }catch(e){}
+}
+
+// ── RIGHT PANEL ───────────────────────────────────────────────────────────────
+function openRP(traffic,predictions,llm){
+  const name=traffic.area_name||traffic.name||'—';
+  const score=traffic.congestion_score??0;
+  const lvl=traffic.congestion_level||sLvl(score);
+  const col=CM[traffic.color]||LC[lvl]||'#22c55e';
+
+  document.getElementById('rp').classList.add('open');
+  document.getElementById('overlay').style.display='block';
+  setTimeout(()=>map&&map.invalidateSize(),350);
+
+  document.getElementById('rpan').textContent=name;
+  const badge=document.getElementById('rpcb');
+  badge.textContent=lvl;badge.style.background=LBG[lvl];badge.style.color=col;badge.style.border='1px solid '+(LBD[lvl]||col);
+  document.getElementById('rpcs').textContent=traffic.current_speed??'—';
+  document.getElementById('rpcs').style.color=col;
+  document.getElementById('rpff').textContent=traffic.free_flow_speed??60;
+  const pct=Math.min(score*10,100);
+  document.getElementById('rpmp').textContent=pct+'%';
+  const fill=document.getElementById('rpmf');fill.style.width=pct+'%';fill.style.background=col;
+  document.getElementById('rpft').textContent=new Date().toLocaleTimeString('en-IN');
+  document.getElementById('rpnr').textContent=rfCountdown+'s';
+  document.getElementById('rprf').style.width=(rfCountdown/60*100)+'%';
+
+  if(predictions){
+    const slots=[{label:'Now',data:predictions.current},{label:'+1hr',data:predictions.next_1hr},{label:'+3hr',data:predictions.next_3hr},{label:'Tmr AM',data:predictions.tomorrow_morning},{label:'Tmr PM',data:predictions.tomorrow_evening}];
+    document.getElementById('rptl').innerHTML=slots.map(s=>{
+      const sc=s.data?.score??0;const lv=s.data?.level||sLvl(sc);const c=LC[lv]||'#22c55e';
+      return '<div class="pc" style="border-color:'+c+'40"><div class="pt">'+s.label+'</div><div class="ps" style="color:'+c+'">'+sc+'</div><div class="pl" style="color:'+c+'">'+lv+'</div></div>';
+    }).join('');
+    document.getElementById('rpbt').textContent='🕐 Best: '+(predictions.best_time_to_travel||'—');
+    document.getElementById('eah').style.display=new Date().getHours()<7?'block':'none';
+    renderHourly(predictions.area_type||'RESIDENTIAL');
+  }
+  if(llm?.immediate_solutions){
+    document.getElementById('rprec').innerHTML=llm.immediate_solutions.map(s=>{
+      const ic=s.impact==='HIGH'?'background:#ef444430;color:#ef4444':s.impact==='MEDIUM'?'background:#f59e0b30;color:#f59e0b':'background:#22c55e30;color:#22c55e';
+      return '<div class="reci"><span class="rimp" style="'+ic+'">'+s.impact+'</span><span>'+s.solution+'</span></div>';
+    }).join('');
+  }
+}
+
+function closeRP(){
+  document.getElementById('rp').classList.remove('open');
+  document.getElementById('overlay').style.display='none';
+  document.querySelectorAll('.ai').forEach(e=>e.classList.remove('sel'));
+  setTimeout(()=>map&&map.invalidateSize(),350);
+}
+
+// ── HOURLY CHART ──────────────────────────────────────────────────────────────
+function renderHourly(areaType){
+  const svg=document.getElementById('hc');
+  const W=svg.clientWidth||270,H=82;
+  const hours=Array.from({length:18},(_,i)=>i+6);
+  const now=new Date().getHours(),wkd=new Date().getDay()>=6;
+  function sc(h){
+    if(areaType==='IT_HUB'){if(wkd)return 3;if(h>=7&&h<10)return 9;if(h>=10&&h<17)return 5;if(h>=17&&h<21)return 8;return 2;}
+    if(areaType==='MARKET'){if(wkd)return h>=10&&h<21?9:3;if(h>=7&&h<10)return 6;if(h>=10&&h<20)return 7;if(h>=20&&h<22)return 8;return 2;}
+    if(wkd)return h>=10&&h<20?5:2;if(h>=7&&h<10)return 7;if(h>=10&&h<17)return 4;if(h>=17&&h<21)return 7;return 2;
+  }
+  const bw=(W-12)/hours.length;let out='';
+  hours.forEach((h,i)=>{
+    const s=sc(h),c=sCol(s),bh=Math.max(4,(s/10)*(H-14));
+    const x=6+i*bw,y=H-bh-7;
+    out+=`<rect x="${x+1}" y="${y}" width="${bw-2}" height="${bh}" fill="${c}" opacity="${h===now?1:.6}" rx="2"/>`;
+    if(h===now)out+=`<rect x="${x}" y="${y-2}" width="${bw}" height="${bh+4}" fill="none" stroke="#3b82f6" stroke-width="1.5" rx="2"/>`;
+    if(i%3===0)out+=`<text x="${x+bw/2}" y="${H-1}" text-anchor="middle" font-size="7" fill="#64748b">${h>12?h-12+'p':h+'a'}</text>`;
+  });
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=out;
+}
+
+// ── AUTO REFRESH ──────────────────────────────────────────────────────────────
+function startRefresh(){
+  if(refreshTimer)clearInterval(refreshTimer);
+  if(rfInterval)clearInterval(rfInterval);
+  rfCountdown=60;
+  rfInterval=setInterval(()=>{
+    rfCountdown=Math.max(0,rfCountdown-1);
+    const pct=rfCountdown/60*100;
+    const rff=document.getElementById('rff'),rprf=document.getElementById('rprf');
+    const rfc=document.getElementById('rfc'),rpnr=document.getElementById('rpnr');
+    if(rff)rff.style.width=pct+'%';if(rprf)rprf.style.width=pct+'%';
+    if(rfc)rfc.textContent=rfCountdown+'s';if(rpnr)rpnr.textContent=rfCountdown+'s';
+  },1000);
+  refreshTimer=setInterval(async()=>{
+    if(!currentCity)return;
+    rfCountdown=60;
+    document.getElementById('ub').style.display='block';
+    try{
+      const res=await fetch(API+'/analyse-city',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({city_name:currentCity})});
+      const data=await res.json();
+      if(res.ok){
+        cityData=data;
+        const score=data.overall_score??0;
+        document.getElementById('os').textContent=parseFloat(score).toFixed(1);
+        document.getElementById('os').style.color=sCol(score);
+        const tp=timePeriod();
+        const tpb=document.getElementById('tpb');
+        tpb.textContent=tp.label;tpb.style.background=tp.bg;tpb.style.color=tp.col;
+        renderAreaList(data.areas||[]);renderWorst(data.worst_areas||[]);renderBest(data.best_areas||[]);
+        addMarkers(data.areas||[]);
+        document.getElementById('lut').textContent=new Date().toLocaleTimeString('en-IN');
+      }
+    }catch(e){}
+    finally{document.getElementById('ub').style.display='none';}
+  },60000);
+}
+
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>{t.style.display='none';},4500);}
+</script>
+</body>
+</html>

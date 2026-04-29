@@ -1,0 +1,36 @@
+# Environment variables - NEVER upload API keys
+.env
+.env.local
+.env.production
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Kiro AI files
+.kiro/
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Data files that should not be in repo
+data/blueprints/*.json
+
+# Test files
+*.test.py

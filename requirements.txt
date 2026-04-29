@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-multipart
+requests
+networkx
+pandas
+geopy
+groq
+python-dotenv
