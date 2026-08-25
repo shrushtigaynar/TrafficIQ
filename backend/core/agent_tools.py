@@ -4,10 +4,10 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
-from modules.realtime_traffic import get_area_traffic, get_congestion_level
-from modules.traffic_predictor import classify_area_type, predict_score_at_hour
-from modules.llm_analysis import analyse_traffic_with_llm
-from modules.data_collection import collect_city_data
+from core.realtime_traffic import get_area_traffic, get_congestion_level
+from core.traffic_predictor import classify_area_type, predict_score_at_hour
+from core.llm_analysis import analyse_traffic_with_llm
+from core.data_collection import collect_city_data
 
 # Global city cache (shared with main.py)
 CITY_CACHE = {}

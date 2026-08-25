@@ -1,7 +1,6 @@
 # Traffic analysis module
 
-from modules.realtime_traffic import get_worst_areas, get_best_areas, get_congestion_level
-
+from core.realtime_traffic import get_worst_areas, get_best_areas, get_congestion_level
 
 def analyse_city_traffic(city_name: str, city_traffic: list) -> dict:
     """Score and rank city traffic data."""

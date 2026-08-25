@@ -4,9 +4,9 @@ import json
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from modules.agent_tools import AgentTools
-from modules.agent_memory import memory
-from modules.traffic_analysis import analyse_city_traffic
+from core.agent_tools import AgentTools
+from core.agent_memory import memory
+from core.traffic_analysis import analyse_city_traffic
 
 
 class TrafficIQAgent:
@@ -238,7 +238,7 @@ class TrafficIQAgent:
 
     def _classify_area(self, area_name: str) -> str:
         """Classify area type for reasoning."""
-        from modules.traffic_predictor import classify_area_type
+        from core.traffic_predictor import classify_area_type
         return classify_area_type(area_name)
 
     def _select_best_action(self, interventions: List[Dict], 

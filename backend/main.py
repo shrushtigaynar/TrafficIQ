@@ -3,13 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 
-from modules.data_collection import collect_city_data
-from modules.realtime_traffic import get_city_traffic, get_worst_areas, get_best_areas, get_area_traffic
-from modules.traffic_analysis import analyse_city_traffic
-from modules.traffic_predictor import get_predictions, get_city_wide_prediction
-from modules.llm_analysis import analyse_traffic_with_llm
-from modules.agent_orchestrator import TrafficIQAgent
-from modules.agent_memory import memory
+from core.data_collection import collect_city_data
+from core.realtime_traffic import get_city_traffic, get_worst_areas, get_best_areas, get_area_traffic
+from core.traffic_analysis import analyse_city_traffic
+from core.traffic_predictor import get_predictions, get_city_wide_prediction
+from core.llm_analysis import analyse_traffic_with_llm
+from core.agent_orchestrator import TrafficIQAgent
+from core.agent_memory import memory
 
 app = FastAPI(title="Traffic Intelligence System")
 
