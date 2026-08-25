@@ -1,5 +1,5 @@
 // Smart City AI - app.js
-const API='http://127.0.0.1:8000';
+const API='https://trafficiq-ae7y.onrender.com';
 let blueprintData=null,_mapScale=1,currentView='top';
 
 /**
