@@ -2,6 +2,23 @@
 const API='http://127.0.0.1:8000';
 let blueprintData=null,_mapScale=1,currentView='top';
 
+/**
+ * Trigger autonomous agent analysis
+ * Called when user clicks the agent button or via auto-trigger
+ */
+function triggerAgentAnalysis(){
+  const city=(document.getElementById('navInput').value||document.getElementById('heroInput').value).trim();
+  if(!city){
+    showToast('Please analyze a city first');
+    return;
+  }
+  if(typeof runAgentAnalysis === 'function'){
+    runAgentAnalysis(city);
+  }else{
+    showToast('Agent system not loaded');
+  }
+}
+
 /* ── TABS ── */
 function switchTab(tab){
   ['dashboard','blueprint','analytics','reports'].forEach(t=>{
@@ -68,81 +85,86 @@ function renderAll(bp){
 
 /* ── SIDEBAR ── */
 function renderSidebar(bp){
-  const ov=bp.city_overview||{};
-  const score=ov.health_score||0;
+  const score=(bp.overall_score||0)*10;
   const color=score>=70?'var(--green)':score>=50?'var(--orange)':'var(--red)';
-  const rating=score>=90?'Excellent':score>=70?'Good':score>=50?'Needs Attention':'Critical';
+  const rating=score>=70?'Good':score>=50?'Moderate':'Critical';
   const circ=276,offset=circ-(score/100)*circ;
   const fg=document.getElementById('sideRingFg');
   fg.style.stroke=color; fg.style.strokeDashoffset=circ;
-  document.getElementById('sideRingScore').textContent=score;
+  document.getElementById('sideRingScore').textContent=score.toFixed(0);
   document.getElementById('sideRingRating').textContent=rating;
   document.getElementById('sideRingRating').style.color=color;
   setTimeout(()=>{ fg.style.strokeDashoffset=offset; },300);
-  const roi=bp.financial_summary?.roi||{};
-  const stats=[['person','Population',(ov.population||0).toLocaleString('en-IN')],['building','City Tier',(ov.city_tier||'').toUpperCase()],['rupee','Investment','Rs.'+( ov.total_investment_crore||0)+' Cr'],['clock','Payback',(ov.payback_years||'N/A')+' yrs'],['chart','Annual ROI','Rs.'+(roi.total_annual_savings_crore||0)+' Cr']];
+  const areas=bp.areas||[];
+  const stats=[['person','Total Areas',areas.length.toString()],['building','City',bp.city_name||'Unknown'],['rupee','Traffic Level',bp.overall_level||'N/A'],['clock','Timestamp',(bp.timestamp||'').substring(11,16)],['chart','Best Areas',(bp.best_areas||[]).length.toString()]];
   const icons={'person':'👤','building':'🏢','rupee':'₹','clock':'⏱','chart':'📈'};
   document.getElementById('quickStats').innerHTML=stats.map(([k,label,val])=>`<div class="stat-card"><div class="stat-icon">${icons[k]}</div><div class="stat-info"><div class="stat-label">${label}</div><div class="stat-value">${val}</div></div></div>`).join('');
-  const problems=bp.problem_report||[];
-  document.getElementById('sideProblems').innerHTML=problems.length?problems.map((p,i)=>{
-    const cls=p.severity==='CRITICAL'?'sev-c':p.severity==='HIGH'?'sev-h':'sev-l';
-    return `<div class="prob-mini" onclick="highlightProblem(${i})"><div class="prob-mini-header"><div class="prob-mini-name">${p.name||''}</div><span class="sev ${cls}">${p.severity}</span></div><div class="prob-mini-desc">${(p.description||'').substring(0,65)}...</div></div>`;
-  }).join(''):'<div style="font-size:.75rem;color:var(--green)">No critical problems detected</div>';
-  const phases=bp.phase_plan||{};
-  const pkeys=['phase_1','phase_2','phase_3','phase_4'];
-  const pcols=['var(--cyan)','#8b5cf6','var(--orange)','var(--green)'];
-  document.getElementById('phaseStepper').innerHTML=pkeys.map((key,i)=>{
-    const ph=phases[key]||{};
-    return `<div class="phase-step"><div class="phase-dot-col"><div class="phase-dot ${i===0?'active':''}"></div>${i<3?'<div class="phase-line"></div>':''}</div><div class="phase-info"><div class="phase-name" style="color:${pcols[i]}">${ph.label||key}</div><span class="phase-budget-tag">Rs.${ph.total_budget_crore||0} Cr</span></div></div>`;
-  }).join('');
+  const worstAreas=bp.worst_areas||[];
+  document.getElementById('sideProblems').innerHTML=worstAreas.length?worstAreas.map((a,i)=>{
+    const cls=a.congestion_level==='CRITICAL'?'sev-c':a.congestion_level==='HIGH'?'sev-h':'sev-l';
+    return `<div class="prob-mini"><div class="prob-mini-header"><div class="prob-mini-name">${a.area_name||''}</div><span class="sev ${cls}">${a.congestion_level||'N/A'}</span></div><div class="prob-mini-desc">Score: ${a.congestion_score||0}/10</div></div>`;
+  }).join(''):'<div style="font-size:.75rem;color:var(--green)">All areas clear</div>';
+  document.getElementById('phaseStepper').innerHTML='<div style="font-size:.75rem;color:var(--muted)">Real-time Traffic Intelligence System Ready</div>';
 }
 
 /* ── RIGHT PANEL ── */
 function renderRightPanel(bp){
-  const ds=bp.data_summary||{},air=ds.air_quality||{},infra=ds.infrastructure||{},traffic=ds.traffic||{};
-  const fin=bp.financial_summary||{},roi=fin.roi||{},phases=bp.phase_plan||{};
-  // Air Quality
-  const WHO={pm2_5:12,pm10:45,nitrogen_dioxide:40,ozone:100};
-  const aqItems=[['PM2.5',air.pm2_5,WHO.pm2_5],['PM10',air.pm10,WHO.pm10],['NO2',air.nitrogen_dioxide,WHO.nitrogen_dioxide],['O3',air.ozone,WHO.ozone]];
-  const aqMax=Math.max(...aqItems.map(([,v])=>v||0),1);
-  document.getElementById('aqChart').innerHTML=aqItems.map(([label,val,who])=>{
-    const v=val||0,pct=Math.min((v/aqMax)*100,100),whoPct=Math.min((who/aqMax)*100,100),safe=v<=who,color=safe?'var(--green)':'var(--red)';
-    return `<div class="aq-bar-row"><div class="aq-label">${label}</div><div class="aq-bar-bg"><div class="aq-bar-fill" style="width:${pct}%;background:${color}"></div><div class="who-line" style="left:${whoPct}%"></div></div><div class="aq-val">${v}</div></div>`;
-  }).join('')+'<div style="font-size:.6rem;color:var(--muted);margin-top:.3rem">| = WHO safe limit</div>';
-  // Donuts
-  const donutItems=[['Water',infra.water_coverage_pct||0,'var(--cyan)'],['Power',infra.electricity_coverage_pct||0,'var(--green)'],['Waste',infra.waste_coverage_pct||0,'var(--orange)'],['Roads',infra.roads_paved_pct||0,'#8b5cf6']];
+  const areas=bp.areas||[];
+  const bestAreas=bp.best_areas||[];
+  const worstAreas=bp.worst_areas||[];
+  const predictions=bp.predictions||{};
+  const llmInsights=bp.llm_insights||{};
+  
+  // Area Quality Comparison
+  const areaCount=Math.min(4,areas.length);
+  const topAreas=areas.sort((a,b)=>(b.congestion_score||0)-(a.congestion_score||0)).slice(0,areaCount);
+  const areaMax=Math.max(...topAreas.map(a=>a.congestion_score||0),1);
+  document.getElementById('aqChart').innerHTML=topAreas.map(a=>{
+    const v=a.congestion_score||0,pct=(v/areaMax)*100,color=v>7?'var(--red)':v>4?'var(--orange)':'var(--green)';
+    return `<div class="aq-bar-row"><div class="aq-label">${a.area_name||'Area'}</div><div class="aq-bar-bg"><div class="aq-bar-fill" style="width:${pct}%;background:${color}"></div></div><div class="aq-val">${v.toFixed(1)}</div></div>`;
+  }).join('')+'<div style="font-size:.6rem;color:var(--muted);margin-top:.3rem">Congestion Score (0-10)</div>';
+  
+  // Traffic Distribution Donuts
+  const congLevels=['CRITICAL','HIGH','MODERATE','LOW'];
+  const levelCounts=congLevels.map(level=>areas.filter(a=>a.congestion_level===level).length);
+  const donutItems=[['Critical',levelCounts[0],'var(--red)'],['High',levelCounts[1],'var(--orange)'],['Moderate',levelCounts[2],'#fbbf24'],['Low',levelCounts[3],'var(--green)']];
   const c70=2*Math.PI*28;
-  document.getElementById('infraDonuts').innerHTML=donutItems.map(([label,pct,color])=>{
+  document.getElementById('infraDonuts').innerHTML=donutItems.map(([label,count,color])=>{
+    const pct=Math.round((count/(areas.length||1))*100);
     const offset=(c70-(pct/100)*c70).toFixed(1);
     return `<div class="donut-wrap"><svg viewBox="0 0 70 70"><circle class="donut-bg" cx="35" cy="35" r="28"/><circle class="donut-fg" cx="35" cy="35" r="28" stroke="${color}" stroke-dasharray="${c70.toFixed(1)}" stroke-dashoffset="${c70.toFixed(1)}" data-offset="${offset}" style="transition:stroke-dashoffset .9s ease;transform:rotate(-90deg);transform-origin:35px 35px;fill:none;stroke-width:8;stroke-linecap:round;"/><text x="35" y="38" text-anchor="middle" font-size="10" font-weight="800" fill="#e0e8ff">${pct}%</text></svg><div class="donut-label">${label}</div></div>`;
   }).join('');
   setTimeout(()=>{ document.querySelectorAll('.donut-fg').forEach(el=>{ el.style.strokeDashoffset=el.dataset.offset; }); },400);
-  // Traffic
-  const junctions=traffic.major_junctions||0,signals=traffic.traffic_signals||0,crossings=traffic.pedestrian_crossings||0;
-  const tMax=Math.max(junctions,signals,crossings,1);
-  document.getElementById('trafficChart').innerHTML=[['Junctions',junctions,'var(--cyan)'],['Signals',signals,'var(--green)'],['Crossings',crossings,'var(--orange)']].map(([label,val,color])=>
-    `<div class="traffic-bar-row"><div class="traffic-bar-label"><span>${label}</span><span>${val}</span></div><div class="traffic-bar-bg"><div class="traffic-bar-fill" style="width:${(val/tMax*100).toFixed(1)}%;background:${color}"></div></div></div>`
-  ).join('')+`<div style="font-size:.68rem;color:var(--muted);margin-top:.4rem">Signal/Junction ratio: <b style="color:${signals/Math.max(junctions,1)>=1?'var(--green)':'var(--red)'}">${(signals/Math.max(junctions,1)).toFixed(2)}</b></div>`;
-  // Investment
-  const pkeys=['phase_1','phase_2','phase_3','phase_4'],pcols=['var(--cyan)','#8b5cf6','var(--orange)','var(--green)'],plabels=['Ph1','Ph2','Ph3','Ph4'];
-  const pbudgets=pkeys.map(k=>(phases[k]||{}).total_budget_crore||0);
-  const totalInv=pbudgets.reduce((a,b)=>a+b,0)||1;
-  document.getElementById('investChart').innerHTML=`<div class="inv-bar-wrap">${pkeys.map((_,i)=>{const pct=(pbudgets[i]/totalInv*100).toFixed(1);return `<div class="inv-seg" style="width:${pct}%;background:${pcols[i]}" title="${plabels[i]}: Rs.${pbudgets[i]}Cr">${pct>8?plabels[i]:''}</div>`;}).join('')}</div><div class="inv-legend">${pkeys.map((_,i)=>`<div class="inv-leg-item"><div class="inv-leg-dot" style="background:${pcols[i]}"></div>${plabels[i]}: Rs.${pbudgets[i]}Cr</div>`).join('')}</div><div style="font-size:.68rem;color:var(--muted);margin-top:.3rem">Total: Rs.${totalInv.toFixed(0)} Cr &nbsp;<span style="color:${fin.budget_status==='FEASIBLE'?'var(--green)':fin.budget_status==='STRETCH'?'var(--orange)':'var(--red)'}">${fin.budget_status||''}</span></div>`;
-  // ROI Chart
+  
+  // LLM Insights
+  const insights=llmInsights.immediate_solutions||[];
+  const iMax=Math.max(...insights.map(s=>s.impact==='HIGH'?3:s.impact==='MEDIUM'?2:1),1);
+  document.getElementById('trafficChart').innerHTML=insights.slice(0,3).map((sol,idx)=>{
+    const impactVal=sol.impact==='HIGH'?3:sol.impact==='MEDIUM'?2:1;
+    const color=impactVal===3?'var(--green)':impactVal===2?'var(--orange)':'#fbbf24';
+    return `<div class="traffic-bar-row"><div class="traffic-bar-label"><span>${sol.solution||'Solution'}</span><span>${sol.impact||'N/A'}</span></div><div class="traffic-bar-bg"><div class="traffic-bar-fill" style="width:${(impactVal/iMax*100).toFixed(1)}%;background:${color}"></div></div></div>`;
+  }).join('')+`<div style="font-size:.68rem;color:var(--muted);margin-top:.4rem">Immediate Solutions by Impact</div>`;
+  
+  // Best Travel Times (from predictions)
+  const mostCongested=predictions.most_congested_tomorrow||[];
+  const leastCongested=predictions.least_congested_tomorrow||[];
+  const pbudgets=[mostCongested.length,leastCongested.length,worstAreas.length,bestAreas.length];
+  const totalBudget=pbudgets.reduce((a,b)=>a+b,1);
+  document.getElementById('investChart').innerHTML=`<div class="inv-bar-wrap">${[['Most Congested',pbudgets[0],'var(--red)'],['Least Congested',pbudgets[1],'var(--green)'],['Worst Now',pbudgets[2],'var(--orange)'],['Best Now',pbudgets[3],'#8b5cf6']].map(([label,val,col])=>{const pct=(val/totalBudget*100).toFixed(1);return `<div class="inv-seg" style="width:${pct}%;background:${col}" title="${label}: ${val}">${pct>8?label.substring(0,5):''}</div>`;}).join('')}</div><div class="inv-legend">${[['var(--red)','Most Congested Tomorrow: '+mostCongested.length],['var(--green)','Least Congested Tomorrow: '+leastCongested.length],['var(--orange)','Worst Areas Now: '+worstAreas.length],['#8b5cf6','Best Areas Now: '+bestAreas.length]].map(([col,txt])=>`<div class="inv-leg-item"><div class="inv-leg-dot" style="background:${col}"></div>${txt}</div>`).join('')}</div><div style="font-size:.68rem;color:var(--muted);margin-top:.3rem">Traffic Summary</div>`;
+  
+  // Travel Advice
+  const advice=llmInsights.travel_advice||'Plan your route according to current traffic conditions.';
   const svg=document.getElementById('roiSvg');
-  const W=svg.clientWidth||300,H=120,years=10,annualSavings=roi.total_annual_savings_crore||(totalInv*0.1);
-  const pi=[],pr=[];
-  for(let y=0;y<=years;y++){ pi.push([y/years*W,H-(Math.min(totalInv,totalInv*(y/3))/totalInv)*(H-10)-5]); pr.push([y/years*W,H-Math.min(annualSavings*y/totalInv,1)*(H-10)-5]); }
-  const toP=pts=>'M'+pts.map(p=>p.join(',')).join(' L');
-  const bx=Math.min(totalInv/Math.max(annualSavings,.01)/years,1)*W;
+  const W=svg.clientWidth||300,H=120;
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
-  svg.innerHTML=`<path d="${toP(pi)}" fill="none" stroke="var(--red)" stroke-width="1.5" opacity=".7"/><path d="${toP(pr)}" fill="none" stroke="var(--green)" stroke-width="1.5"/>${totalInv/Math.max(annualSavings,.01)<=years?`<line x1="${bx}" y1="5" x2="${bx}" y2="${H-5}" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="3,2"/><text x="${bx+3}" y="14" font-size="7" fill="var(--cyan)">Break Even</text>`:''}<text x="3" y="12" font-size="7" fill="var(--red)">Investment</text><text x="3" y="22" font-size="7" fill="var(--green)">Returns</text><text x="${W-20}" y="${H-3}" font-size="7" fill="var(--muted)">10yr</text>`;
-  // Solution cards
-  const solutions=bp.solutions_section||[];
-  document.getElementById('solCards').innerHTML=solutions.map((s,i)=>{
-    const impact=s.impact_score||0;
-    const stars=Array.from({length:5},(_,j)=>`<span class="mini-star" style="color:${j<Math.round(impact/2)?'var(--orange)':'var(--border)'}">&#9733;</span>`).join('');
-    return `<div class="sol-card" onclick="openSolutionModal(${i})"><div class="sol-card-name">${s.solution_name||''}</div><div class="sol-card-meta"><span class="pill pill-cyan">Rs.${s.cost?.avg||0}Cr</span><span class="pill pill-green">${s.timeline||''}</span><div class="mini-stars">${stars}</div></div></div>`;
+  svg.innerHTML=`<rect width="${W}" height="${H}" fill="rgba(0,212,255,.05)" rx="4"/><text x="10" y="20" font-size="11" font-weight="600" fill="#00d4ff">AI Travel Advice</text><text x="10" y="40" font-size="9" fill="#e0e8ff">${advice}</text>`;
+  
+  // Solutions
+  const solutions=llmInsights.long_term_solutions||[];
+  document.getElementById('solCards').innerHTML=solutions.slice(0,3).map((s,i)=>{
+    const impact=s.impact==='VERY HIGH'?5:s.impact==='HIGH'?4:s.impact==='MEDIUM'?3:2;
+    const stars=Array.from({length:5},(_,j)=>`<span class="mini-star" style="color:${j<impact?'var(--orange)':'var(--border)'}">&#9733;</span>`).join('');
+    return `<div class="sol-card"><div class="sol-card-name">${s.solution||'Solution'}</div><div class="sol-card-meta"><span class="pill pill-cyan">${s.cost||'N/A'}</span><span class="pill pill-green">${s.impact||'N/A'}</span><div class="mini-stars">${stars}</div></div></div>`;
   }).join('')||'<div style="font-size:.75rem;color:var(--muted)">No solutions yet.</div>';
 }
 
@@ -158,16 +180,16 @@ function cityBlocks(W,H){
 function getMapSize(){ const el=document.getElementById('bpCanvas'); return {W:el.clientWidth||800,H:el.clientHeight||500}; }
 
 function renderBlueprintMap(bp){
-  const ov=bp.city_overview||{};
-  document.getElementById('bpTitle').textContent=(ov.city_name||'City')+' - Smart City Blueprint';
+  document.getElementById('bpTitle').textContent=(bp.city_name||'City')+' - Live Traffic Map';
   drawTopView(bp); draw3DView(bp); drawZoneView(bp); drawNetworkView(bp);
   switchView('top');
 }
 
 function drawTopView(bp){
   const {W,H}=getMapSize(),blocks=cityBlocks(W,H);
-  const problems=bp.problem_report||[],solutions=bp.solutions_section||[];
-  const hasCrit=problems.some(p=>p.severity==='CRITICAL');
+  const areas=bp.areas||[];
+  const worstAreas=bp.best_areas||[];
+  const hasCrit=areas.some(a=>a.congestion_level==='CRITICAL');
   const cols=9,rows=7,bw=(W-80)/cols,bh=(H-80)/rows;
   let h=`<defs><radialGradient id="hotspot"><stop offset="0%" stop-color="#ff3366" stop-opacity=".5"/><stop offset="100%" stop-color="#ff3366" stop-opacity="0"/></radialGradient><radialGradient id="solspot"><stop offset="0%" stop-color="#00d4ff" stop-opacity=".4"/><stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/></radialGradient><filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect width="${W}" height="${H}" fill="#080e1c"/>`;
   for(let c=0;c<=cols;c++){ const x=40+c*bw; h+=`<line x1="${x}" y1="30" x2="${x}" y2="${H-30}" stroke="#1a2a3a" stroke-width="${c%3===0?2:1}"/>`; }
@@ -176,11 +198,11 @@ function drawTopView(bp){
   h+=`<path d="M0,${ry} Q${W*.25},${ry-20} ${W*.5},${ry+15} Q${W*.75},${ry+35} ${W},${ry+10}" fill="none" stroke="#0a3a5a" stroke-width="18" opacity=".7"/>`;
   h+=`<path d="M0,${ry} Q${W*.25},${ry-20} ${W*.5},${ry+15} Q${W*.75},${ry+35} ${W},${ry+10}" fill="none" stroke="#0d4a70" stroke-width="10" opacity=".5"/>`;
   blocks.forEach((b,i)=>{
-    const isProblem=hasCrit&&(i===2||i===15||i===28||i===40);
-    const isSol=solutions.length>0&&(i===5||i===18||i===31);
+    const isProblem=hasCrit&&worstAreas.length>0&&i<3;
+    const isBest=(bp.best_areas||[]).length>0&&i>=blocks.length-3;
     h+=`<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${ZONE_COLORS[b.type]}" stroke="${ZONE_STROKE[b.type]}" stroke-width=".8" rx="2" style="cursor:pointer" onmouseenter="showBlockTip(event,'${b.type}',${i})" onmouseleave="hideTip()"/>`;
     if(isProblem) h+=`<circle cx="${b.x+b.w/2}" cy="${b.y+b.h/2}" r="${Math.min(b.w,b.h)*.4}" fill="url(#hotspot)"><animate attributeName="r" values="${Math.min(b.w,b.h)*.3};${Math.min(b.w,b.h)*.5};${Math.min(b.w,b.h)*.3}" dur="2s" repeatCount="indefinite"/></circle>`;
-    if(isSol) h+=`<circle cx="${b.x+b.w/2}" cy="${b.y+b.h/2}" r="6" fill="var(--cyan)" filter="url(#glow)" style="cursor:pointer" onclick="openSolutionModal(0)"><animate attributeName="opacity" values="1;.4;1" dur="1.5s" repeatCount="indefinite"/></circle><text x="${b.x+b.w/2}" y="${b.y+b.h/2+4}" text-anchor="middle" font-size="7" fill="#000" font-weight="bold">S</text>`;
+    if(isBest) h+=`<circle cx="${b.x+b.w/2}" cy="${b.y+b.h/2}" r="6" fill="var(--cyan)" filter="url(#glow)"><animate attributeName="opacity" values="1;.4;1" dur="1.5s" repeatCount="indefinite"/></circle><text x="${b.x+b.w/2}" y="${b.y+b.h/2+4}" text-anchor="middle" font-size="7" fill="#000" font-weight="bold">✓</text>`;
   });
   h+=`<line x1="40" y1="${40+2*bh+bh/2}" x2="${W-40}" y2="${40+2*bh+bh/2}" stroke="#2a4a6a" stroke-width="4" opacity=".6"/>`;
   h+=`<line x1="${40+4*bw+bw/2}" y1="40" x2="${40+4*bw+bw/2}" y2="${H-40}" stroke="#2a4a6a" stroke-width="4" opacity=".6"/>`;

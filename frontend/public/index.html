@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>TrafficIQ — Real-Time Traffic Intelligence</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="agent-panel.css"/>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;transition:background-color .3s,color .3s,border-color .3s}
 /* ── THEME VARIABLES ── */
@@ -193,6 +194,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   <div class="sw"><input id="ci" type="text" placeholder="Enter city name…" autocomplete="off"/><button id="ab" onclick="go()">Analyse</button></div>
   <div class="nr">
     <button id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    <button id="agentToggleBtn" class="agent-toggle-btn" title="Open AI Agent Panel">🤖</button>
     <div id="clk">--:--:--</div>
     <div class="lb">LIVE</div>
     <div id="lu">Updated: <span id="lut">—</span></div>
@@ -508,9 +510,11 @@ function toggleLayer(layer){
   if(!cityData)return;
   if(layer==='current'){
     curMarkers.forEach(m=>{try{m.addTo(map);}catch(e){}});
-    clearM(predMarkers);
+    predMarkers.forEach(m=>{try{map.removeLayer(m);}catch(e){}});
   }else{
-    clearM(curMarkers);clearM(predMarkers);
+    curMarkers.forEach(m=>{try{map.removeLayer(m);}catch(e){}});
+    predMarkers.forEach(m=>{try{map.removeLayer(m);}catch(e){}});
+    predMarkers.length=0;
     (cityData.areas||[]).forEach(function(a){
       if(!a.lat||!a.lon)return;
       const pred=(cityData.predictions?.most_congested_tomorrow||[]);
@@ -524,7 +528,7 @@ function toggleLayer(layer){
   }
 }
 
-function resetView(){if(!cityData||!map)return;const c=cityData.coordinates||{};map.flyTo([c.lat||20.59,c.lon||78.96],12,{duration:1});}
+function resetView(){if(!cityData||!map)return;if(activeLayer!=='current')toggleLayer('current');const c=cityData.coordinates||{};map.flyTo([c.lat||20.59,c.lon||78.96],12,{duration:1});}
 
 // ── AREA SELECTION ────────────────────────────────────────────────────────────
 function selectArea(idx){
@@ -664,5 +668,34 @@ function startRefresh(){
 
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>{t.style.display='none';},4500);}
 </script>
+
+<!-- ── AGENT PANEL ── -->
+<div id="agentPanel">
+  <div class="agent-header">
+    <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+      <div class="agent-status-indicator"></div>
+    </div>
+    <div style="flex: 1;">
+      <div class="agent-header-title">🤖 TrafficIQ Agent</div>
+      <div class="agent-header-subtitle">Autonomous Traffic Operations</div>
+    </div>
+    <button id="agentCloseBtn" class="agent-close-btn" title="Close panel">✕</button>
+  </div>
+  
+  <div class="agent-content" id="agentContent">
+    <div class="agent-empty-state">
+      <div class="agent-empty-icon">🤖</div>
+      <div class="agent-empty-text">AI Agent Ready</div>
+      <div class="agent-empty-hint">Analyze a city to activate autonomous traffic intelligence</div>
+    </div>
+  </div>
+  
+  <div style="padding: 1rem; border-top: 1px solid var(--border); background: var(--panel); max-height: 150px; display: flex; flex-direction: column;">
+    <div style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem;">Activity Log</div>
+    <div id="agentActivityLog" class="agent-activity-log"></div>
+  </div>
+</div>
+
+<script src="agent-panel.js"></script>
 </body>
 </html>
